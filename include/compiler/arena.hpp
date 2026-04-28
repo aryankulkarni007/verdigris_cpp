@@ -46,7 +46,6 @@ public:
     std::size_t size = sizeof(T);
     std::size_t alignment = alignof(T);
 
-    // Cast to size_t to prevent the signed/unsigned warning
     std::size_t space = (current_ptr_ == nullptr)
                             ? 0
                             : static_cast<std::size_t>(end_ptr_ - current_ptr_);
