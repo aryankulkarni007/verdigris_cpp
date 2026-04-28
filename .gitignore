@@ -1,0 +1,28 @@
+# --- Build Artifacts ---
+build/
+bin/
+*.o
+*.a
+*.out
+*.so
+*.dylib
+
+# --- CMake ---
+CMakeCache.txt
+CMakeFiles/
+CMakeScripts/
+cmake_install.cmake
+install_manifest.txt
+compile_commands.json
+.cmake/
+
+# --- IDEs & Editors ---
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+.clangd/
+
+# --- Package Managers ---
+vcpkg_installed/
