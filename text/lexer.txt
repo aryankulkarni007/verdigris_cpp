@@ -1,0 +1,28 @@
+decision tree
+
+'+'  → TK_PLUS or TK_PLUSEQ (l_peek '=')
+'-'  → TK_MINUS, TK_MINUSEQ, TK_ARROW (already handled comments in trivia)
+'*'  → TK_STAR or TK_STAREQ
+'/'  → TK_SLASH or TK_SLASHEQ
+'='  → TK_ASSIGN, TK_EQ, TK_FATARROW
+'<'  → TK_LT or TK_LTEQ
+'>'  → TK_GT or TK_GTEQ
+'!'  → TK_BANG or TK_NEQ (l_peek '=')
+'&'  → TK_AMP or TK_AND (l_peek '&')
+'|'  → TK_PIPE or TK_OR (l_peek '|')
+'.'  → TK_DOT or TK_DDOT (l_peek '.')
+':'  → TK_COL or TK_CCOL (l_peek ':')
+'('  → TK_OPAREN
+')'  → TK_CPAREN
+'{'  → TK_OBRACE
+'}'  → TK_CBRACE
+'['  → TK_OBRACK
+']'  → TK_CBRACK
+';'  → TK_SEMI
+','  → TK_COMMA
+'_'  → TK_UND or start of identifier
+'"'  → string literal
+0-9  → integer or float literal
+a-z/A-Z → identifier or keyword
+'\0' → TK_EOF
+default → TK_ILLEGAL

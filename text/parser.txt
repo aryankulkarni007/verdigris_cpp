@@ -1,0 +1,16 @@
+precedence
+
+Level 1:  Assignment        = += -= *= /= %=        right-associative
+Level 2:  Pipeline          >>                       left-associative
+Level 3:  Logical OR        ||                       left-associative
+Level 4:  Logical AND       &&                       left-associative
+Level 5:  Equality          == !=                    left-associative
+Level 6:  Comparison        < > <= >=                left-associative
+Level 7:  Range             .. ..=                   left-associative (restricted)
+Level 8:  Additive          + -                      left-associative
+Level 9:  Multiplicative    * / %                    left-associative
+Level 10: Cast              as                       left-associative
+Level 11: Unary (prefix)    - ! & *                  right-associative
+Level 12: Error prop (post) !                        left-associative
+Level 13: Call/Index/Field  () [] .                  left-associative
+Level 14: Primary
