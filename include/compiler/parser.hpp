@@ -14,6 +14,14 @@ struct ParserError {
 };
 
 class Parser {
+
+private:
+  std::span<const Token> tokens_;
+  std::size_t cursor_ = 0;
+
+  std::pmr::vector<Event> events_;
+  std::pmr::vector<ParserError> errors_;
+
 public:
   // NOTE: make a separate parser arena or take main arena
   Parser(std::span<const Token> tokens, std::pmr::memory_resource *resource)
@@ -70,12 +78,30 @@ public:
 
   std::size_t checkpoint() const { return events_.size(); }
 
-private:
-  std::span<const Token> tokens_;
-  std::size_t cursor_ = 0;
+  // parser.hpp — public API
+public:
+  void parse_expr(int min_bp = 0);
+  void parse_primary();
+  void parse_arg_list();
 
-  std::pmr::vector<Event> events_;
-  std::pmr::vector<ParserError> errors_;
+  void raw_dump() const;
+
+private:
+  static int left_bp(TokenKind k);
+
+  static bool is_right_assoc(TokenKind k) {
+    switch (k) {
+    case TokenKind::ASSIGN:
+    case TokenKind::PLUSEQ:
+    case TokenKind::MINUSEQ:
+    case TokenKind::STAREQ:
+    case TokenKind::SLASHEQ:
+    case TokenKind::MODULOEQ:
+      return true;
+    default:
+      return false;
+    }
+  }
 };
 
 } // namespace vd

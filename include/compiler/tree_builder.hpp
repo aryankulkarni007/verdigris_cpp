@@ -26,7 +26,9 @@ enum class SyntaxKind : uint32_t {
 #undef AS_SYNTAX
 
   // expressions
-  BINARY_E, UNARY_E, CALL_E, PIPELINE_E, MATCH_EXPR, IF_EXPR, BLOCK_EXPR,
+  BINARY_E, UNARY_E, CALL_E, LITERAL_E, IDENT_E, PAREN_E, FIELD_E, INDEX_E,
+  PIPELINE_E, MATCH_EXPR, IF_EXPR,
+  BLOCK_EXPR,
   // statments
   LET_STMT, MUT_STMT, RETURN_STMT, EXPR_STMT,
   // declarations
@@ -66,14 +68,17 @@ public:
     for (size_t i = 0; i < events_.size(); ++i) {
       const auto &event = events_[i];
       switch (event.kind) {
+
       case EventKind::OPEN:
         stack_.emplace_back(Frame(event.syntax_kind, &pool_));
         break;
+
       case EventKind::TOKEN: {
         const auto &token = tokens_[cursor_++];
-        stack_.back().children.emplace_back(token);
+        stack_.back().children.emplace_back(&token);
         stack_.back().text_len += static_cast<uint32_t>(token.text.size());
       } break;
+
       case EventKind::CLOSE: {
         Frame top = std::move(stack_.back());
         stack_.pop_back();
@@ -101,8 +106,6 @@ public:
           stack_.back().text_len += node->text_len;
         }
       } break;
-      case EventKind::TOMBSTONE:
-        break;
       default:
         break;
       }
