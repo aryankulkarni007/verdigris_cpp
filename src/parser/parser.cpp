@@ -2,6 +2,7 @@
 #include "compiler/token.hpp"
 #include "compiler/tree_builder.hpp"
 #include <cstddef>
+#include <iomanip>
 
 int vd::Parser::left_bp(vd::TokenKind k) {
   using namespace vd; // to avoid local hassle
@@ -200,11 +201,10 @@ void vd::Parser::parse_expr(int min_bp) {
 }
 
 void vd::Parser::raw_dump() const {
-  std::printf("--------------------------------------------\n");
   for (size_t i = 0; i < events_.size(); ++i) {
-    const auto &e = events_[i];
-    std::printf("[%03zu] Kind: %d | Syntax: %d\n", i, static_cast<int>(e.kind),
-                static_cast<int>(e.syntax_kind));
+    std::cout << "[" << std::right << std::setw(3) << std::setfill('0') << i
+              << "] " << std::setfill(' ') << std::setw(9) << std::left
+              << TreeBuilder::event_kind_name(events_[i].kind) << " "
+              << TreeBuilder::syntax_kind_name(events_[i].syntax_kind) << "\n";
   }
-  std::printf("--------------------------------------------\n");
 }

@@ -116,6 +116,44 @@ public:
     return root_node;
   }
 
+  static inline const char *event_kind_name(EventKind k) {
+    switch (k) {
+    case EventKind::OPEN:
+      return "OPEN";
+    case EventKind::CLOSE:
+      return "CLOSE";
+    case EventKind::TOKEN:
+      return "TOKEN";
+    case EventKind::TOMBSTONE:
+      return "TOMBSTONE";
+    default:
+      return "UNKNOWN";
+    }
+  }
+
+  static inline const char *syntax_kind_name(SyntaxKind k) {
+    switch (k) {
+      // clang-format off
+#define AS_CASE(kind) case SyntaxKind::kind: return #kind;
+      TOKEN_T(AS_CASE)
+#undef AS_CASE
+      // clang-format on
+    case SyntaxKind::BINARY_E:
+      return "BINARY_E";
+    case SyntaxKind::LITERAL_E:
+      return "LITERAL_E";
+    case SyntaxKind::UNARY_E:
+      return "UNARY_E";
+    case SyntaxKind::CALL_E:
+      return "CALL_E";
+    case SyntaxKind::ROOT:
+      return "ROOT";
+    // etc
+    default:
+      return "UNKNOWN";
+    }
+  }
+
 private:
   std::span<Event> events_;
   std::span<const Token> tokens_;

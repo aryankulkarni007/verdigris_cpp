@@ -30,7 +30,7 @@ int main(int argc, char *argv[]) {
                          PROT_READ, MAP_PRIVATE, fd, 0);
 
   std::string_view source(mapped_data, static_cast<std::size_t>(st.st_size));
-  std::cout << source;
+  // std::cout << source;
 
   // 32kb init size
   char buffer_space[32768];
@@ -43,7 +43,7 @@ int main(int argc, char *argv[]) {
 
   while (true) {
     auto token = lexer.next_token();
-    std::cout << token << "\n";
+    // std::cout << token << "\n";
     ts.push_back(token);
     if (token.kind == vd::TokenKind::_EOF)
       break;
