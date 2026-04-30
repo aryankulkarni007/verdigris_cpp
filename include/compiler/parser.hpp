@@ -78,7 +78,6 @@ public:
 
   std::size_t checkpoint() const { return events_.size(); }
 
-  // parser.hpp — public API
 public:
   void parse_expr(int min_bp = 0);
   void parse_primary();

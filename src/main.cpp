@@ -1,4 +1,3 @@
-// #include "compiler/arena.hpp"
 #include "compiler/lexer.hpp"
 #include "compiler/parser.hpp"
 #include "compiler/token.hpp"
@@ -15,7 +14,6 @@ int main(int argc, char *argv[]) {
     return 1;
   }
 
-  // no allocation file read
   int fd = open(argv[1], O_RDONLY);
   if (fd == -1) {
     std::cerr << "Error opening " << argv[1] << ": " << std::strerror(errno)
@@ -24,7 +22,6 @@ int main(int argc, char *argv[]) {
   }
   struct stat st;
   fstat(fd, &st);
-  // map as a read-only buffer
   const char *mapped_data =
       (const char *)mmap(nullptr, static_cast<std::size_t>(st.st_size),
                          PROT_READ, MAP_PRIVATE, fd, 0);

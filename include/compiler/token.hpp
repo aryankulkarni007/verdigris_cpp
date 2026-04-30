@@ -1,7 +1,7 @@
 #pragma once
 
-/// x-macro from c implementation
 #include <cstdint>
+#include <iomanip>
 #include <string_view>
 #define TOKEN_T(X)                                                             \
   /* ── special ────────────────────────────────────────────────────────── */  \
@@ -15,57 +15,57 @@
   X(TRUE)   /* boolean true  (lexed as ident, reserved for later)   */         \
   X(FALSE)  /* boolean false (lexed as ident, reserved for later)   */         \
   /* ── keywords ───────────────────────────────────────────────────────── */  \
-  /* NOTE: all keywords are l_currently lexed as IDENT and distinguished */    \
-  /* by the parser via intern pointer comparison. these entries are kept    */ \
-  /* here as documentation and for future use if keyword lexing is added.  */  \
   X(AS)        /* as    — type cast: x as float                        */      \
   X(LET)       /* let   — immutable inferred binding: let x = 1        */      \
   X(MUT)       /* mut   — mutable binding: mut x = 1                   */      \
   X(STRUCT)    /* struct — struct declaration                          */      \
-  X(ENUM)      /* enum  — enum declaration                             */      \
+  X(TYPE)      /* type  — 'enum' but actually union type declaration   */      \
   X(FOR)       /* for   — for loop                                     */      \
   X(IN)        /* in    — for i in array                               */      \
   X(MATCH)     /* match — pattern match expression                     */      \
   X(LOOP)      /* loop  — infinite loop                                */      \
   X(WHILE)     /* while — condition loop                               */      \
   X(BREAK)     /* break — exit loop                                    */      \
-  X(CONTINUE)  /* continue — skip to next iteration                   */       \
+  X(CONTINUE)  /* continue — skip to next iteration                    */      \
   X(IF)        /* if    — conditional / if expression                  */      \
   X(ELSE)      /* else  — else branch                                  */      \
   X(RETURN)    /* return — explicit early return                       */      \
   X(_NULL)     /* null  — null type / null value                       */      \
   X(VOID)      /* void  — unit return type                             */      \
   X(SELF)      /* self  — receiver in method definitions               */      \
-  X(PUB)       /* pub   — public visibility modifier                   */      \
+  X(EXPORT)    /* export   — public visibility modifier                */      \
   X(IMPORT)    /* import — module import                               */      \
   X(INTERFACE) /* interface — structural contract definition           */      \
-  X(DEFER)     /* defer — deferred execution at scope exit             */      \
-  X(CATCH)     /* catch — inline error recovery: open()! catch |e| ... */      \
+  X(IMPLEMENT) /* implement — method implementation block              */      \
+  X(EFFECT)    /* effect — effect declaration                          */      \
   /* ── assignment ─────────────────────────────────────────────────────── */  \
   X(ASSIGN) /* =    — assignment / binding                          */         \
   /* ── comparison ─────────────────────────────────────────────────────── */  \
-  X(EQ)   /* ==   — equality                                      */           \
-  X(NEQ)  /* !=   — inequality                                    */           \
-  X(LT)   /* <    — less than                                     */           \
-  X(GT)   /* >    — greater than                                  */           \
-  X(LTEQ) /* <=   — less than or equal                            */           \
-  X(GTEQ) /* >=   — greater than or equal                        */            \
+  X(EQ)   /* ==   — equality                                        */         \
+  X(NEQ)  /* !=   — inequality                                      */         \
+  X(LT)   /* <    — less than                                       */         \
+  X(GT)   /* >    — greater than                                    */         \
+  X(LTEQ) /* <=   — less than or equal                              */         \
+  X(GTEQ) /* >=   — greater than or equal                           */         \
   /* ── logical ────────────────────────────────────────────────────────── */  \
-  X(AND)  /* &&   — logical and                                   */           \
-  X(OR)   /* ||   — logical or                                    */           \
-  X(BANG) /* !    — logical not / error propagation suffix        */           \
+  X(AND)  /* &&   — logical and                                     */         \
+  X(OR)   /* ||   — logical or                                      */         \
+  X(BANG) /* !    — logical not / error propagation suffix          */         \
   /* ── arithmetic ─────────────────────────────────────────────────────── */  \
   X(PLUS)   /* +    — addition                                      */         \
   X(MINUS)  /* -    — subtraction / negation                        */         \
   X(STAR)   /* *    — multiplication / pointer dereference          */         \
   X(SLASH)  /* /    — division                                      */         \
   X(MODULO) /* %    — modulo                                        */         \
+  X(SHL)    /* <<   — bitwise shift left                            */         \
+  X(SHR)    /* >>   — bitwise shift right                           */         \
+  X(CARET)  /* ^    — bitwise shift right                           */         \
   /* ── compound assignment ────────────────────────────────────────────── */  \
-  X(PLUSEQ)   /* +=   — add and assign                                */       \
-  X(MINUSEQ)  /* -=   — subtract and assign                           */       \
-  X(STAREQ)   /* *=   — multiply and assign                           */       \
-  X(SLASHEQ)  /* /=   — divide and assign                             */       \
-  X(MODULOEQ) /* %=   — modulo and assign                             */       \
+  X(PLUSEQ)   /* +=   — add and assign                              */         \
+  X(MINUSEQ)  /* -=   — subtract and assign                         */         \
+  X(STAREQ)   /* *=   — multiply and assign                         */         \
+  X(SLASHEQ)  /* /=   — divide and assign                           */         \
+  X(MODULOEQ) /* %=   — modulo and assign                           */         \
   /* ── delimiters ─────────────────────────────────────────────────────── */  \
   X(OPAREN) /* (    — open parenthesis                              */         \
   X(CPAREN) /* )    — close parenthesis                             */         \
@@ -82,8 +82,8 @@
   X(COL)      /* :    — struct field separator in literals: { x: 0 }  */       \
   X(CCOL)     /* ::   — namespace / method path: Point::distance      */       \
   X(AMP)      /* &    — reference / slice prefix: &v, &[int]          */       \
-  X(PIPE)     /* |    — union return type: int | error                */       \
-  X(PIPELINE) /* >>   — left-to-right pipeline composition            */       \
+  X(PIPE)     /* |    — union return type: int | error and lambda     */       \
+  X(PIPELINE) /* |>   — left-to-right pipeline composition            */       \
   X(ARROW)    /* ->   — function return type: add(a, b) -> int        */       \
   X(FATARROW) /* =>   — match arm: 0 => 1                             */       \
   X(UND)      /* _    — wildcard / discard pattern in match           */       \
@@ -138,7 +138,15 @@ inline std::ostream &operator<<(std::ostream &os, TokenKind kind) {
 }
 
 inline std::ostream &operator<<(std::ostream &os, const Token &token) {
-  return os << "Token{ " << token.kind << ", text: '" << token.text
-            << "', loc: " << token.loc.line << ":" << token.loc.col << " }";
+  std::ios_base::fmtflags f(os.flags());
+  os << "[" << std::right << std::setw(3) << std::setfill('0') << token.loc.line
+     << ":" << std::setw(3) << std::setfill('0') << token.loc.col << "]  ";
+  os << std::left << std::setfill(' ') << std::setw(12)
+     << token_name(token.kind);
+  std::string quoted_text = "'" + std::string(token.text) + "'";
+  os << std::setw(15) << quoted_text;
+
+  os.flags(f);
+  return os;
 }
 } // namespace vd

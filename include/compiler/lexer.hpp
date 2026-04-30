@@ -4,7 +4,6 @@
 #include <array>
 #include <cstddef>
 #include <string_view>
-#include <unordered_map>
 
 static vd::TokenKind keyword_kind(std::string_view s) {
   if (s == "as")
@@ -15,8 +14,8 @@ static vd::TokenKind keyword_kind(std::string_view s) {
     return vd::TokenKind::MUT;
   if (s == "struct")
     return vd::TokenKind::STRUCT;
-  if (s == "enum")
-    return vd::TokenKind::ENUM;
+  if (s == "type")
+    return vd::TokenKind::TYPE;
   if (s == "for")
     return vd::TokenKind::FOR;
   if (s == "in")
@@ -41,16 +40,16 @@ static vd::TokenKind keyword_kind(std::string_view s) {
     return vd::TokenKind::_NULL;
   if (s == "self")
     return vd::TokenKind::SELF;
-  if (s == "pub")
-    return vd::TokenKind::PUB;
+  if (s == "export")
+    return vd::TokenKind::EXPORT;
   if (s == "import")
     return vd::TokenKind::IMPORT;
   if (s == "interface")
     return vd::TokenKind::INTERFACE;
-  if (s == "defer")
-    return vd::TokenKind::DEFER;
-  if (s == "catch")
-    return vd::TokenKind::CATCH;
+  if (s == "implement")
+    return vd::TokenKind::IMPLEMENT;
+  if (s == "effect")
+    return vd::TokenKind::EFFECT;
   return vd::TokenKind::IDENT;
 }
 
@@ -224,6 +223,7 @@ private:
     table['?'] = TokenKind::QUESTION;
     table['_'] = TokenKind::UND;
     table['~'] = TokenKind::TILDE;
+    table['^'] = TokenKind::CARET;
     return table;
   }();
 
@@ -348,12 +348,14 @@ private:
     return m.complete(TokenKind::BANG);
   }
 
-  // <  <=
+  // <  <=  <<
   Token lex_lt_variants(std::string_view trivia) {
     auto m = anchor(trivia);
     advance();
     if (expect('='))
       return m.complete(TokenKind::LTEQ);
+    if (expect('<'))
+      return m.complete(TokenKind::SHL);
 
     return m.complete(TokenKind::LT);
   }
@@ -365,7 +367,7 @@ private:
     if (expect('='))
       return m.complete(TokenKind::GTEQ);
     if (expect('>'))
-      return m.complete(TokenKind::PIPELINE);
+      return m.complete(TokenKind::SHR);
 
     return m.complete(TokenKind::GT);
   }
@@ -390,11 +392,14 @@ private:
     return m.complete(TokenKind::AMP);
   }
 
+  // |  ||  |>
   Token lex_pipe_variants(std::string_view trivia) {
     auto m = anchor(trivia);
     advance();
     if (expect('|'))
       return m.complete(TokenKind::OR);
+    if (expect('>'))
+      return m.complete(TokenKind::PIPELINE);
 
     return m.complete(TokenKind::PIPE);
   }
@@ -436,6 +441,7 @@ private:
     dispatch_['?'] = &Lexer::lex_single;
     dispatch_['#'] = &Lexer::lex_single;
     dispatch_['~'] = &Lexer::lex_single;
+    dispatch_['^'] = &Lexer::lex_single;
 
     dispatch_['_'] = &Lexer::lex_ident;
     for (int c = 'a'; c <= 'z'; ++c)
