@@ -1,0 +1,223 @@
+<-*
+  * SOON THIS README WILL BE INFORMATIVE
+  * maybe after parser
+*->
+
+-- THIS IS A REDESIGN DOCUMENT FOR VERDIGRIS' SYNTAX
+-- NOTE: PRONE TO CHANGE
+
+- < > MACROS
+- < > COMPTIME EVAL FOR PURE FUNCTIONS
+- < > CONST GENERICS
+- < > EFFECTS
+- < > LAMBDAS
+- < > MODULE SYSTEM
+- < > MEMORY MODEL
+- < > ITERATORS
+- < > ERROR HANDLING
+
+-*
+ * Block comments look
+ * like this
+*-
+
+--> PRIMITIVES
+int     -- signed 64-bit integer
+float   -- 64-bit floating point
+bool    -- true, false
+char    -- UTF-8 character (32-bit)
+string  -- UTF-8 string
+void    -- unit type ()
+
+--> VARIABLES
+
+-- explicit type, immutable
+int x = 1;
+float y = 1.5;
+string s = "hello";
+
+-- explicit type, mutable
+mut int x = 1;
+
+-- type inference, immutable
+let x = 1;
+
+-- type inference, mutable
+mut x = 1
+
+-> ARRAYS AND SLICES
+int[4] fixed = [1, 2, 3, 4]; -- fixed size array
+&[int] fixed = [0..2];       -- slice (view into array)
+
+-> VECTORS : STDLIB?
+-- implemented as struct, type or effect?
+-- macros will add the syntax
+
+mut Vec<int> v{};
+mut v = Vec<int>{};
+
+v |> push(1);
+v.push(1);
+
+let first = v[0];
+let last = v[v.len() - 1];
+
+for i in v {
+    print("{}", v[i]);
+}
+
+-- will work if Printable interface is satisfied for elements
+print("{}", v);
+
+--> FUNCTIONS
+
+-- forward declarations
+add(int a, int b) -> int;
+
+-- definition
+add(int a, int b) -> int {
+    a + b
+}
+
+-- generic functions
+identity<T>(value: T) -> T {
+    value
+}
+
+--> STRUCTS
+-- methods and interfaces
+structure Point {
+    x: int,
+    y: int
+
+    -- any method called Point is the constructor
+    export Point() -> Self;
+
+    -- constructor overide
+    export Point(int x, int y) -> Self;
+
+    origin() -> Point;
+    distance(Point other) -> float;
+}
+
+implement Point {
+    Point(int x, int y) -> Self {
+        origin()
+    }
+
+    origin() -> Point {
+        Point { .x: 0, .y: 0 }
+    }
+
+    distance(Point other) -> float {
+        -- no implicit casting in the language
+        pow(pow((other.x - x), 2) + pow((other.y - y), 2) as float, 0.5)
+    }
+}
+
+-- usage
+Point x{};          -- uses origin constructor
+Point y{10, 10};    -- uses constructor with params
+
+let dist = x.distance(y);
+print("{}", dist);
+
+--> Algebraic Data Types
+type Option<T> = Some(T) | None
+
+type Result<T, E> = Ok(T), Err(E)
+
+type Shape =
+    | Circle(float radius)
+    | Rectangle(float width, float height)
+    | Dot
+
+--> PATTERN MATCHING
+-- could be an interface i.e. area for circle, rectangle or dot
+area(shape: Shape) -> float {
+    match shape {
+        Circle(r) => 3.14159 * r * r,
+        Rectangle(w, h) => w * h,
+        Point => 0.0,
+    }
+}
+
+let (x, y) = dot_to_tuple(p);
+(int x, int y) = dot_to_tuple(p);
+
+
+-- pattern guards
+match value {
+    n if n < 0 => "negative",
+    n if n > 0 => "positive",
+    0 => "zero",
+}
+
+--> ERROR HANDLING
+open(path: string) -> File | IOError;
+
+-- explicit propagation for errors w. !
+file = open("data.json")!;
+
+ast = path |> open! |> read! |> parse!;
+
+--> INTERFACES
+interface Printable {
+    print(self) -> string;
+}
+
+interface Hashable {
+    hash(self) -> uint;
+}
+
+interface Eq {
+    eq(self, other: Self) -> bool;
+}
+
+Point::format(self) -> string {
+    print("({}, {})", self.x, self.y)
+}
+
+interface HashableEq {
+    Hashable;
+    Eq;
+}
+
+get_or_insert<K: Hashable + Eq, V>(
+    map: Map[K, V],
+    key: k,
+    default: V
+    ) -> V {
+    -- TODO
+}
+
+--> Operator Overloading
+interface Add[Rhs = Self] {
+    add(self, rhs: Rhs) -> Self;
+}
+
+-- for custom types
+Vector3::add(self, other: Vector3) -> Vector3 {
+    Vector3{
+        .x: self.x + other.x,
+        .y: self.y + other.y,
+        .z: self.z + other.z,
+    }
+}
+
+-- if we implement print for Vector3
+print("{}", v1 + v2);
+
+-- comparison operators
+interface PartialEq[Rhs = Self] {
+    eq(self, rhs: Rhs) -> bool;
+    ne(self, rhs: Rhs) -> bool;
+}
+
+interface PartialOrd[Rhs = Self] {
+    lt(self, rhs: Rhs) -> bool;
+    le(self, rhs: Rhs) -> bool;
+    gt(self, rhs: Rhs) -> bool;
+    ge(self, rhs: Rhs) -> bool;
+}
+
