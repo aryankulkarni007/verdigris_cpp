@@ -360,20 +360,24 @@ bool vd::Parser::parse_stmt() {
 
     // expression statement (any token that can start an expression)
   case TokenKind::IDENT: {
-    if (is_fn_def())
+    if (is_fn_def()) {
       parse_fn();
-    else {
-      auto m = open();
-      parse_expr(0);
-      if (eat(TokenKind::SEMI)) {
-        close(m, SyntaxKind::EXPR_S);
-        return true;
-      } else {
-        close(m, SyntaxKind::IMPLICIT_RETURN_E);
-        return false;
-      }
+      return true;
     }
-    return true;
+    if (is_typed_binding()) {
+      parse_typed_binding();
+      return true;
+    }
+    // expression statement
+    auto m = open();
+    parse_expr(0);
+    if (eat(TokenKind::SEMI)) {
+      close(m, SyntaxKind::EXPR_S);
+      return true;
+    } else {
+      close(m, SyntaxKind::IMPLICIT_RETURN_E);
+      return false;
+    }
   }
   case TokenKind::STRUCT:
     parse_structure();
