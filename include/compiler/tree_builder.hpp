@@ -27,7 +27,7 @@ enum class SyntaxKind : uint32_t {
     // expressions
     BINARY_E, UNARY_E, CALL_E, LITERAL_E, IDENT_E, PAREN_E,
     FIELD_E, INDEX_E, PIPELINE_E, IF_E, MATCH_E,
-    BLOCK_E, LAMBDA_E, RANGE_E, STRUCT_LIT_E,
+    BLOCK_E, LAMBDA_E, RANGE_E, STRUCTURE_LIT_E,
     TUPLE_E, IMPLICIT_RETURN_E,
     // statements
     LET_S, MUT_S, RETURN_S, EXPR_S, TYPED_BINDING,
@@ -42,7 +42,7 @@ enum class SyntaxKind : uint32_t {
     SELF_PARAM, PARAM, PARAM_LIST, ARG_LIST, TYPE_REF, GEN_PARAM_LIST,
     OPTIONAL_TYPE_REF, SLICE_TYPE_REF, ARRAY_TYPE_REF,
     UNION_TYPE_REF, GEN_ARG_LIST, MATCH_ARM,
-    ROOT,
+    ROOT, ARRAY_LIT
 };
 // clang-format on
 
@@ -173,8 +173,8 @@ public:
       return "LAMBDA_E";
     case SyntaxKind::RANGE_E:
       return "RANGE_E";
-    case SyntaxKind::STRUCT_LIT_E:
-      return "STRUCT_LIT_E";
+    case SyntaxKind::STRUCTURE_LIT_E:
+      return "STRUCTURE_LIT_E";
     case SyntaxKind::TUPLE_E:
       return "TUPLE_E";
     case SyntaxKind::IMPLICIT_RETURN_E:
@@ -261,6 +261,8 @@ public:
       return "GEN_ARG_LIST";
     case SyntaxKind::MATCH_ARM:
       return "MATCH_ARM";
+    case SyntaxKind::ARRAY_LIT:
+      return "ARRAY_LIT_E";
     case SyntaxKind::ROOT:
       return "ROOT";
 

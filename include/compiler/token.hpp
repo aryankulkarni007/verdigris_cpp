@@ -19,7 +19,7 @@
   X(AS)        /* as    — type cast: x as float                        */      \
   X(LET)       /* let   — immutable inferred binding: let x = 1        */      \
   X(MUT)       /* mut   — mutable binding: mut x = 1                   */      \
-  X(STRUCT)    /* structure — struct declaration                          */   \
+  X(STRUCTURE)    /* structure — struct declaration                          */   \
   X(TYPE)      /* type  — 'enum' but actually union type declaration   */      \
   X(FOR)       /* for   — for loop                                     */      \
   X(IN)        /* in    — for i in array                               */      \

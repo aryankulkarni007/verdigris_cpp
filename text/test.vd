@@ -1,1 +1,4 @@
-int x = 5;
+-- fix: infinitely loop
+identity[T](T value) -> T {
+    value
+}

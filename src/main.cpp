@@ -49,5 +49,8 @@ int main(int argc, char *argv[]) {
   vd::Parser parser(ts, &arena);
   parser.parse_file();
   parser.raw_dump();
+  for (auto &err : parser.errors_) {
+    std::cerr << err << "\n";
+  }
   return 0;
 }

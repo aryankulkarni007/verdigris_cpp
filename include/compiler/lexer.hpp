@@ -13,7 +13,7 @@ static vd::TokenKind keyword_kind(std::string_view s) {
   if (s == "mut")
     return vd::TokenKind::MUT;
   if (s == "structure")
-    return vd::TokenKind::STRUCT;
+    return vd::TokenKind::STRUCTURE;
   if (s == "type")
     return vd::TokenKind::TYPE;
   if (s == "for")

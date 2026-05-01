@@ -2,6 +2,7 @@
 
 #include "compiler/token.hpp"
 #include "compiler/tree_builder.hpp"
+#include <cstddef>
 #include <memory_resource>
 #include <span>
 #include <vector>
@@ -9,9 +10,14 @@
 namespace vd {
 
 struct ParserError {
-  std::string_view message;
+  std::string message;
   SourceLocation loc;
 };
+
+inline std::ostream &operator<<(std::ostream &os, const ParserError &err) {
+  return os << "error: " << err.message << " at " << err.loc.line << ":"
+            << err.loc.col;
+}
 
 class Parser {
 
@@ -20,9 +26,11 @@ private:
   std::size_t cursor_ = 0;
 
   std::pmr::vector<Event> events_;
-  std::pmr::vector<ParserError> errors_;
 
 public:
+  // WARN: temp public
+  std::pmr::vector<ParserError> errors_;
+
   // NOTE: make a separate parser arena or take main arena
   Parser(std::span<const Token> tokens, std::pmr::memory_resource *resource)
       : tokens_(tokens), events_(resource), errors_(resource) {}
@@ -48,12 +56,13 @@ public:
     return false;
   }
 
-  void expect(TokenKind kind) {
-    if (!eat(kind)) {
-      SourceLocation loc =
-          cursor_ < tokens_.size() ? tokens_[cursor_].loc : SourceLocation{};
-      errors_.push_back({token_name(kind), loc}); // "expected X"
-    }
+  bool expect(TokenKind kind) {
+    if (eat(kind))
+      return true;
+    SourceLocation loc =
+        cursor_ < tokens_.size() ? tokens_[cursor_].loc : SourceLocation{};
+    errors_.push_back({token_name(kind), loc});
+    return false;
   }
 
   void bump() {
@@ -65,7 +74,7 @@ public:
   }
 
   // --- TREE CONSTRUCTION ---
-  std::size_t open() {
+  std::size_t open_marker() {
     std::size_t mark = events_.size();
     events_.push_back(Event{EventKind::OPEN, SyntaxKind::ERROR});
     return mark;
@@ -78,9 +87,26 @@ public:
 
   std::size_t checkpoint() const { return events_.size(); }
 
+  // --- RAII Node ---
+  struct OpenNode {
+    Parser &parser;
+    std::size_t marker;
+    SyntaxKind kind;
+
+    OpenNode(Parser &p, std::size_t m)
+        : parser(p), marker(m), kind(SyntaxKind::ERROR) {}
+    ~OpenNode() { parser.close(marker, kind); }
+    void set_kind(SyntaxKind k) { kind = k; }
+
+    OpenNode(const OpenNode &) = delete;
+    OpenNode &operator=(const OpenNode &) = delete;
+  };
+
+  OpenNode open() { return OpenNode(*this, open_marker()); }
+
 public:
-  void parse_primary();
-  void parse_expr(int min_bp = 0);
+  void parse_expr(int min_bp = 0, bool allow_struct_lit = true);
+  void parse_primary(bool allow_struct_lit = true);
 
   void parse_type_ref();
   void parse_typed_binding();
@@ -128,7 +154,8 @@ public:
     }
   }
 
-  void error_recover();
+  void amend_last_error(const char *msg);
+  void error_recover(const char *msg);
 
 private:
   int left_bp(TokenKind k);
@@ -156,30 +183,106 @@ private:
     return false;
   }
 
-  inline bool is_fn_def() const {
-    if (peek() == TokenKind::IDENT && peek(1) == TokenKind::OPAREN)
-      return true;
-    return false;
+  // was too eager with previous def
+  bool is_fn_def() const {
+    if (peek(0) != TokenKind::IDENT)
+      return false;
+    if (peek(1) != TokenKind::OPAREN)
+      return false;
+
+    // Skip to matching )
+    int depth = 1;
+    size_t i = 2;
+    while (depth > 0 && peek(i) != TokenKind::_EOF) {
+      if (peek(i) == TokenKind::OPAREN)
+        depth++;
+      else if (peek(i) == TokenKind::CPAREN)
+        depth--;
+      i++;
+    }
+    if (depth != 0)
+      return false;
+
+    // After ), must have -> for a function definition
+    return peek(i) == TokenKind::ARROW;
   }
 
   // let x = ..., mut x = ...
   bool is_inferred_binding() const {
-    if (peek() == TokenKind::LET)
+    size_t i = 0;
+    if (peek(i) == TokenKind::LET)
       return true;
-    if (peek() == TokenKind::MUT && peek(1) != TokenKind::IDENT)
-      return false;
-    if (peek() == TokenKind::MUT && peek(1) == TokenKind::IDENT &&
-        peek(2) == TokenKind::ASSIGN)
-      return true;
+    if (peek(i) == TokenKind::MUT) {
+      i++;
+      // After 'mut', must have an identifier or '('
+      if (peek(i) == TokenKind::IDENT || peek(i) == TokenKind::OPAREN)
+        return true;
+    }
     return false;
   }
 
-  // <type_name> x = ..., mut <type_name> x =
+  /// <type_name> x = ..., mut <type_name> x =
   bool is_typed_binding() const {
     size_t i = 0;
     if (peek(i) == TokenKind::MUT)
-      ++i;
-    return peek(i) == TokenKind::IDENT && peek(i + 1) == TokenKind::IDENT;
+      i++;
+
+    // tuple type destructuring: (int x, int y) = ...
+    if (peek(i) == TokenKind::OPAREN) {
+      int depth = 1;
+      i++;
+      while (depth > 0 && peek(i) != TokenKind::_EOF) {
+        if (peek(i) == TokenKind::OPAREN)
+          depth++;
+        else if (peek(i) == TokenKind::CPAREN)
+          depth--;
+        i++;
+      }
+      // i is now past the closing )
+      return peek(i) == TokenKind::ASSIGN || peek(i) == TokenKind::OBRACE;
+    }
+
+    // array/slice type: [int; 4] or &[int]
+    if (peek(i) == TokenKind::OBRACK || peek(i) == TokenKind::AMP) {
+      int depth = 0;
+      while (peek(i) != TokenKind::_EOF) {
+        if (peek(i) == TokenKind::OBRACK)
+          depth++;
+        else if (peek(i) == TokenKind::CBRACK) {
+          depth--;
+          if (depth == 0) {
+            i++;
+            break;
+          }
+        }
+        i++;
+      }
+      if (peek(i) != TokenKind::IDENT)
+        return false;
+      i++;
+      return peek(i) == TokenKind::ASSIGN || peek(i) == TokenKind::OBRACE;
+    }
+
+    // Named type: int, Vec[int], etc.
+    if (peek(i) == TokenKind::IDENT) {
+      i++;
+      if (peek(i) == TokenKind::OBRACK) {
+        int depth = 1;
+        i++;
+        while (depth > 0 && peek(i) != TokenKind::_EOF) {
+          if (peek(i) == TokenKind::OBRACK)
+            depth++;
+          else if (peek(i) == TokenKind::CBRACK)
+            depth--;
+          i++;
+        }
+      }
+      if (peek(i) != TokenKind::IDENT)
+        return false;
+      i++;
+      return peek(i) == TokenKind::ASSIGN || peek(i) == TokenKind::OBRACE;
+    }
+    return false;
   }
 
   bool is_right_assoc(TokenKind k) const {
