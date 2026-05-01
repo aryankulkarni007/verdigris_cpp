@@ -12,7 +12,7 @@ static vd::TokenKind keyword_kind(std::string_view s) {
     return vd::TokenKind::LET;
   if (s == "mut")
     return vd::TokenKind::MUT;
-  if (s == "struct")
+  if (s == "structure")
     return vd::TokenKind::STRUCT;
   if (s == "type")
     return vd::TokenKind::TYPE;
@@ -75,6 +75,7 @@ private:
     enum class Kind {
       UnterminatedBlockComment,
       UnterminatedString,
+      UnterminatedChar,
       InvalidCharacter
     };
     Kind kind;
@@ -223,16 +224,18 @@ private:
     table['?'] = TokenKind::QUESTION;
     table['_'] = TokenKind::UND;
     table['~'] = TokenKind::TILDE;
-    table['^'] = TokenKind::CARET;
     return table;
   }();
 
+  // TODO: needs to differentiate between _ and ident that starts with _
   Token lex_ident(std::string_view trivia) {
     auto m = anchor(trivia);
     consume_while(
         [](char c) { return is_alpha(c) || is_digit(c) || c == '_'; });
 
     std::string_view text = m.text();
+    if (text == "_")
+      return m.complete(TokenKind::UND);
     TokenKind kind = keyword_kind(text); // handles IDENT aswell
     return m.complete(kind);
   }
@@ -324,6 +327,16 @@ private:
       return m.complete(TokenKind::MODULOEQ);
 
     return m.complete(TokenKind::MODULO);
+  }
+
+  // ^  ^=
+  Token lex_carent_variants(std::string_view trivia) {
+    auto m = anchor(trivia);
+    advance();
+    if (expect('='))
+      return m.complete(TokenKind::CARETEQ);
+
+    return m.complete(TokenKind::CARET);
   }
 
   /// =  ==  =>
@@ -426,6 +439,33 @@ private:
     advance(); // Consume closing "
     return m.complete(TokenKind::STRING);
   }
+
+  Token lex_char(std::string_view trivia) {
+    auto m = anchor(trivia);
+    SourceLocation start = current_loc();
+    advance(); // Consume opening '
+    if (is_at_end()) {
+      errors_.push_back({LexError::Kind::UnterminatedChar, start});
+      return m.complete(TokenKind::ERROR);
+    }
+    if (peek() == '\\') {
+      advance(); // Consume '\'
+      if (is_at_end()) {
+        errors_.push_back({LexError::Kind::UnterminatedChar, start});
+        return m.complete(TokenKind::ERROR);
+      }
+      advance(); // Consume escaped char
+    } else {
+      advance(); // Consume the character
+    }
+    if (is_at_end() || peek() != '\'') {
+      errors_.push_back({LexError::Kind::UnterminatedChar, start});
+      return m.complete(TokenKind::ERROR);
+    }
+    advance(); // Consume closing '
+    return m.complete(TokenKind::CHAR);
+  }
+
   void initialise_dispatch_table() {
     dispatch_.fill(&Lexer::lex_illegal);
 
@@ -441,7 +481,6 @@ private:
     dispatch_['?'] = &Lexer::lex_single;
     dispatch_['#'] = &Lexer::lex_single;
     dispatch_['~'] = &Lexer::lex_single;
-    dispatch_['^'] = &Lexer::lex_single;
 
     dispatch_['_'] = &Lexer::lex_ident;
     for (int c = 'a'; c <= 'z'; ++c)
@@ -464,8 +503,10 @@ private:
     dispatch_['>'] = &Lexer::lex_gt_variants;
     dispatch_[':'] = &Lexer::lex_col_variants;
     dispatch_['"'] = &Lexer::lex_string;
+    dispatch_['\''] = &Lexer::lex_char;
     dispatch_['&'] = &Lexer::lex_amp_variants;
     dispatch_['|'] = &Lexer::lex_pipe_variants;
+    dispatch_['^'] = &Lexer::lex_carent_variants;
   }
 };
 

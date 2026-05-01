@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
   }
 
   vd::Parser parser(ts, &arena);
-  parser.parse_expr();
+  parser.parse_file();
   parser.raw_dump();
   return 0;
 }

@@ -12,13 +12,14 @@
   X(INT)    /* integer literal: 42, 0, 1000                         */         \
   X(FLOAT)  /* float literal: 3.14, 0.5                             */         \
   X(STRING) /* string literal: "hello"                              */         \
+  X(CHAR)   /* char literal: 'a'                                    */         \
   X(TRUE)   /* boolean true  (lexed as ident, reserved for later)   */         \
   X(FALSE)  /* boolean false (lexed as ident, reserved for later)   */         \
   /* ── keywords ───────────────────────────────────────────────────────── */  \
   X(AS)        /* as    — type cast: x as float                        */      \
   X(LET)       /* let   — immutable inferred binding: let x = 1        */      \
   X(MUT)       /* mut   — mutable binding: mut x = 1                   */      \
-  X(STRUCT)    /* struct — struct declaration                          */      \
+  X(STRUCT)    /* structure — struct declaration                          */   \
   X(TYPE)      /* type  — 'enum' but actually union type declaration   */      \
   X(FOR)       /* for   — for loop                                     */      \
   X(IN)        /* in    — for i in array                               */      \
@@ -66,6 +67,7 @@
   X(STAREQ)   /* *=   — multiply and assign                         */         \
   X(SLASHEQ)  /* /=   — divide and assign                           */         \
   X(MODULOEQ) /* %=   — modulo and assign                           */         \
+  X(CARETEQ)  /* ^    — bitwise shift right                           */       \
   /* ── delimiters ─────────────────────────────────────────────────────── */  \
   X(OPAREN) /* (    — open parenthesis                              */         \
   X(CPAREN) /* )    — close parenthesis                             */         \
