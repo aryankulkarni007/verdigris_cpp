@@ -27,3 +27,7 @@ compile_commands.json
 
 # --- Package Managers ---
 vcpkg_installed/
+
+# Debug/Valgrind logs
+*.log
+valgrind-out*

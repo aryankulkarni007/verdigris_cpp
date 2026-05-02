@@ -1,10 +1,12 @@
 #pragma once
 
-#include "compiler/token.hpp"
-#include "compiler/tree_builder.hpp"
+#include "token.hpp"
+#include "tree_builder.hpp"
 #include <cstddef>
+#include <iostream>
 #include <memory_resource>
-#include <span>
+#include <ostream>
+#include <string>
 #include <vector>
 
 namespace vd {
@@ -31,7 +33,7 @@ private:
   static constexpr size_t TOKEN_BUDGET = 10'000'000;
 
 public:
-  // WARN: temp public
+  // public for error printing
   std::pmr::vector<ParserError> errors_;
 
   // NOTE: make a separate parser arena or take main arena

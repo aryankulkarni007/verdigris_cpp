@@ -3,6 +3,7 @@ project(Verdigris LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
@@ -17,15 +18,28 @@ if(APPLE)
     message(STATUS "Build: macOS Native")
 elseif(UNIX AND NOT APPLE)
     message(STATUS "Build: Linux / Docker")
+    # Optimize for debugging in Docker
     add_compile_options(-O0 -g -fno-inline)
 endif()
 
-# --- Sources and Targets ---
-file(GLOB_RECURSE SOURCES "src/*.cpp")
+set(SOURCES
+    src/main.cpp
+    src/parser/parser.cpp
+)
+
 add_executable(verdigris ${SOURCES})
 
-target_include_directories(verdigris PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/include")
+target_include_directories(verdigris PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+)
 
-target_precompile_headers(verdigris PUBLIC <vector> <memory> <iostream> <string_view>)
+target_precompile_headers(verdigris PUBLIC
+    <vector>
+    <memory>
+    <iostream>
+    <string_view>
+    <array>
+)
 
 set_target_properties(verdigris PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")

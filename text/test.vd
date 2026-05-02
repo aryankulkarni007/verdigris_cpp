@@ -1,10 +1,1 @@
-implement Vector3 {
-    add(self, Vector3 other) -> Vector3 {
-        Vector3{
-            .x: self.x + other.x,
-                .y: self.y + other.y,
-                .z: self.z + other.z,
-        }
-    }
-}
-
+int? x = 5;

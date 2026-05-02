@@ -8,53 +8,40 @@
 #include <string_view>
 #include <unordered_map>
 
-using namespace std::string_view_literals;
+namespace vd {
+inline TokenKind keyword_kind(std::string_view s) {
+  using namespace std::string_view_literals;
+  static const std::unordered_map<std::string_view, TokenKind> keywords = {
+      // clang-format off
+        {"as", TokenKind::AS},           {"let", TokenKind::LET},
+        {"mut", TokenKind::MUT},         {"structure", TokenKind::STRUCTURE},
+        {"type", TokenKind::TYPE},       {"for", TokenKind::FOR},
+        {"in", TokenKind::IN},           {"match", TokenKind::MATCH},
+        {"loop", TokenKind::LOOP},       {"while", TokenKind::WHILE},
+        {"break", TokenKind::BREAK},     {"continue", TokenKind::CONTINUE},
+        {"if", TokenKind::IF},           {"else", TokenKind::ELSE},
+        {"return", TokenKind::RETURN},   {"null", TokenKind::_NULL},
+        {"self", TokenKind::SELF},       {"export", TokenKind::EXPORT},
+        {"import", TokenKind::IMPORT},   {"interface", TokenKind::INTERFACE},
+        {"implement", TokenKind::IMPLEMENT}, {"effect", TokenKind::EFFECT}
+    };
+  // clang-format on
 
-static vd::TokenKind keyword_kind(std::string_view s) {
-  static const std::unordered_map<std::string_view, vd::TokenKind> keywords = {
-      {"as", vd::TokenKind::AS},
-      {"let", vd::TokenKind::LET},
-      {"mut", vd::TokenKind::MUT},
-      {"structure", vd::TokenKind::STRUCTURE},
-      {"type", vd::TokenKind::TYPE},
-      {"for", vd::TokenKind::FOR},
-      {"in", vd::TokenKind::IN},
-      {"match", vd::TokenKind::MATCH},
-      {"loop", vd::TokenKind::LOOP},
-      {"while", vd::TokenKind::WHILE},
-      {"break", vd::TokenKind::BREAK},
-      {"continue", vd::TokenKind::CONTINUE},
-      {"if", vd::TokenKind::IF},
-      {"else", vd::TokenKind::ELSE},
-      {"return", vd::TokenKind::RETURN},
-      {"null", vd::TokenKind::_NULL},
-      {"self", vd::TokenKind::SELF},
-      {"export", vd::TokenKind::EXPORT},
-      {"import", vd::TokenKind::IMPORT},
-      {"interface", vd::TokenKind::INTERFACE},
-      {"implement", vd::TokenKind::IMPLEMENT},
-      {"effect", vd::TokenKind::EFFECT}};
-
-  if (auto it = keywords.find(s); it != keywords.end()) {
+  if (auto it = keywords.find(s); it != keywords.end())
     return it->second;
-  }
-
-  return vd::TokenKind::IDENT;
+  return TokenKind::IDENT;
 }
 
-namespace vd {
 class Lexer {
 public:
-  explicit Lexer(std::string_view source) : source_(source) {
-    initialise_dispatch_table();
-  }
+  explicit Lexer(std::string_view source) : source_(source) {}
 
   Token next_token() {
     std::string_view leading_trivia = lex_trivia();
     if (is_at_end())
       return anchor(leading_trivia).complete(TokenKind::_EOF);
 
-    auto handler = dispatch_[static_cast<unsigned char>(peek())];
+    auto handler = dispatch_table[static_cast<unsigned char>(peek())];
     return (this->*handler)(leading_trivia);
   }
 
@@ -82,7 +69,6 @@ private:
 
   // Lexer Handler does dispatching
   using LexHandler = Token (Lexer::*)(std::string_view leading_trivia);
-  std::array<LexHandler, 256> dispatch_;
 
   // while not at end and a particular condition
   template <typename F> void consume_while(F &&predicate) {
@@ -198,21 +184,25 @@ private:
 
   static constexpr std::array<TokenKind, 256> char_to_kind = [] {
     std::array<TokenKind, 256> table{};
-    table.fill(TokenKind::ILLEGAL);
-    table['('] = TokenKind::OPAREN;
-    table[')'] = TokenKind::CPAREN;
-    table['{'] = TokenKind::OBRACE;
-    table['}'] = TokenKind::CBRACE;
-    table['['] = TokenKind::OBRACK;
-    table[']'] = TokenKind::CBRACK;
 
-    table[';'] = TokenKind::SEMI;
-    table[','] = TokenKind::COMMA;
-    table['#'] = TokenKind::HASH;
-    table['@'] = TokenKind::AT;
-    table['?'] = TokenKind::QUESTION;
-    table['_'] = TokenKind::UND;
-    table['~'] = TokenKind::TILDE;
+    for (int i = 0; i < 256; ++i) {
+      table[static_cast<std::size_t>(i)] = TokenKind::ILLEGAL;
+    }
+
+    table[static_cast<unsigned char>('(')] = TokenKind::OPAREN;
+    table[static_cast<unsigned char>(')')] = TokenKind::CPAREN;
+    table[static_cast<unsigned char>('{')] = TokenKind::OBRACE;
+    table[static_cast<unsigned char>('}')] = TokenKind::CBRACE;
+    table[static_cast<unsigned char>('[')] = TokenKind::OBRACK;
+    table[static_cast<unsigned char>(']')] = TokenKind::CBRACK;
+    table[static_cast<unsigned char>(';')] = TokenKind::SEMI;
+    table[static_cast<unsigned char>(',')] = TokenKind::COMMA;
+    table[static_cast<unsigned char>('#')] = TokenKind::HASH;
+    table[static_cast<unsigned char>('@')] = TokenKind::AT;
+    table[static_cast<unsigned char>('?')] = TokenKind::QUESTION;
+    table[static_cast<unsigned char>('_')] = TokenKind::UND;
+    table[static_cast<unsigned char>('~')] = TokenKind::TILDE;
+
     return table;
   }();
 
@@ -455,48 +445,62 @@ private:
     return m.complete(TokenKind::CHAR);
   }
 
-  void initialise_dispatch_table() {
-    dispatch_.fill(&Lexer::lex_illegal);
+  static constexpr auto dispatch_table = [] {
+    std::array<LexHandler, 256> table{};
 
-    dispatch_['('] = &Lexer::lex_single;
-    dispatch_[')'] = &Lexer::lex_single;
-    dispatch_['['] = &Lexer::lex_single;
-    dispatch_[']'] = &Lexer::lex_single;
-    dispatch_['{'] = &Lexer::lex_single;
-    dispatch_['}'] = &Lexer::lex_single;
-    dispatch_[';'] = &Lexer::lex_single;
-    dispatch_[','] = &Lexer::lex_single;
-    dispatch_['@'] = &Lexer::lex_single;
-    dispatch_['?'] = &Lexer::lex_single;
-    dispatch_['#'] = &Lexer::lex_single;
-    dispatch_['~'] = &Lexer::lex_single;
+    for (int i = 0; i < 256; ++i)
+      table[static_cast<std::size_t>(i)] = &Lexer::lex_illegal;
 
-    dispatch_['_'] = &Lexer::lex_ident;
-    for (int c = 'a'; c <= 'z'; ++c)
-      dispatch_[static_cast<unsigned char>(c)] = &Lexer::lex_ident;
-    for (int c = 'A'; c <= 'Z'; ++c)
-      dispatch_[static_cast<unsigned char>(c)] = &Lexer::lex_ident;
+    // helper to fill ranges
+    auto set_range = [&](char start, char end, LexHandler handler) {
+      for (int c = static_cast<unsigned char>(start);
+           c <= static_cast<unsigned char>(end); ++c) {
+        table[static_cast<std::size_t>(c)] = handler;
+      }
+    };
 
-    for (int c = '0'; c <= '9'; c++)
-      dispatch_[static_cast<unsigned char>(c)] = &Lexer::lex_num;
+    // Identifiers and Numbers
+    set_range('a', 'z', &Lexer::lex_ident);
+    set_range('A', 'Z', &Lexer::lex_ident);
+    set_range('0', '9', &Lexer::lex_num);
+    table['_'] = &Lexer::lex_ident;
 
-    dispatch_['.'] = &Lexer::lex_dot_variants;
-    dispatch_['-'] = &Lexer::lex_minus_variants;
-    dispatch_['+'] = &Lexer::lex_add_variants;
-    dispatch_['*'] = &Lexer::lex_star_variants;
-    dispatch_['/'] = &Lexer::lex_slash_variants;
-    dispatch_['%'] = &Lexer::lex_modulo_variants;
-    dispatch_['='] = &Lexer::lex_eq_variants;
-    dispatch_['!'] = &Lexer::lex_bang_variants;
-    dispatch_['<'] = &Lexer::lex_lt_variants;
-    dispatch_['>'] = &Lexer::lex_gt_variants;
-    dispatch_[':'] = &Lexer::lex_col_variants;
-    dispatch_['"'] = &Lexer::lex_string;
-    dispatch_['\''] = &Lexer::lex_char;
-    dispatch_['&'] = &Lexer::lex_amp_variants;
-    dispatch_['|'] = &Lexer::lex_pipe_variants;
-    dispatch_['^'] = &Lexer::lex_carent_variants;
-  }
+    // Single character tokens
+    table['('] = &Lexer::lex_single;
+    table[')'] = &Lexer::lex_single;
+    table['['] = &Lexer::lex_single;
+    table[']'] = &Lexer::lex_single;
+    table['{'] = &Lexer::lex_single;
+    table['}'] = &Lexer::lex_single;
+    table[';'] = &Lexer::lex_single;
+    table[','] = &Lexer::lex_single;
+    table['@'] = &Lexer::lex_single;
+    table['?'] = &Lexer::lex_single;
+    table['#'] = &Lexer::lex_single;
+    table['~'] = &Lexer::lex_single;
+
+    // Multi-character variants
+    table['.'] = &Lexer::lex_dot_variants;
+    table['-'] = &Lexer::lex_minus_variants;
+    table['+'] = &Lexer::lex_add_variants;
+    table['*'] = &Lexer::lex_star_variants;
+    table['/'] = &Lexer::lex_slash_variants;
+    table['%'] = &Lexer::lex_modulo_variants;
+    table['='] = &Lexer::lex_eq_variants;
+    table['!'] = &Lexer::lex_bang_variants;
+    table['<'] = &Lexer::lex_lt_variants;
+    table['>'] = &Lexer::lex_gt_variants;
+    table[':'] = &Lexer::lex_col_variants;
+    table['&'] = &Lexer::lex_amp_variants;
+    table['|'] = &Lexer::lex_pipe_variants;
+    table['^'] = &Lexer::lex_carent_variants;
+
+    // Literals
+    table['"'] = &Lexer::lex_string;
+    table['\''] = &Lexer::lex_char;
+
+    return table;
+  }();
 };
 
 } // namespace vd

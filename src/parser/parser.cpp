@@ -228,9 +228,8 @@ void vd::Parser::parse_expr(int min_bp, bool allow_struct_lit) {
 }
 
 void vd::Parser::parse_type_ref() {
-  std::size_t cp = checkpoint();
+  std::size_t cp, postfix = checkpoint();
   auto m = open();
-  std::size_t postfix = checkpoint();
 
   if (eat(TokenKind::AMP)) {
     // &[type]
@@ -263,33 +262,31 @@ void vd::Parser::parse_type_ref() {
   }
 
   // postfix — only enter if there's actually a postfix token
-  if (peek() == TokenKind::QUESTION || peek() == TokenKind::PIPE) {
-    size_t before;
-    while (true) {
-      before = cursor_;
-      if (peek() == TokenKind::QUESTION) {
-        long new_cp = static_cast<long>(cp);
-        events_[postfix - 1].syntax_kind = SyntaxKind::OPTIONAL_TYPE_REF;
-        events_.insert(events_.begin() + static_cast<long>(cp),
-                       Event{EventKind::OPEN, SyntaxKind::OPTIONAL_TYPE_REF});
-        bump();
-        events_.push_back(
-            Event{EventKind::CLOSE, SyntaxKind::OPTIONAL_TYPE_REF});
-        cp = static_cast<std::size_t>(new_cp);
-      } else if (peek() == TokenKind::PIPE) {
-        events_[postfix - 1].syntax_kind = SyntaxKind::UNION_TYPE_REF;
-        long new_cp = static_cast<long>(cp);
-        events_.insert(events_.begin() + static_cast<long>(cp),
-                       Event{EventKind::OPEN, SyntaxKind::UNION_TYPE_REF});
-        bump();
-        parse_type_ref();
-        events_.push_back(Event{EventKind::CLOSE, SyntaxKind::UNION_TYPE_REF});
-        cp = static_cast<std::size_t>(new_cp);
-      } else {
-        break;
-      }
-      assert(cursor_ > before && "type postfix loop made no progress");
+  // if (peek() == TokenKind::QUESTION || peek() == TokenKind::PIPE) {
+  size_t before;
+  while (true) {
+    before = cursor_;
+    if (peek() == TokenKind::QUESTION) {
+      long new_cp = static_cast<long>(cp);
+      events_[postfix].syntax_kind = SyntaxKind::OPTIONAL_TYPE_REF;
+      events_.insert(events_.begin() + static_cast<long>(cp),
+                     Event{EventKind::OPEN, SyntaxKind::OPTIONAL_TYPE_REF});
+      bump();
+      events_.push_back(Event{EventKind::CLOSE, SyntaxKind::OPTIONAL_TYPE_REF});
+      cp = static_cast<std::size_t>(new_cp);
+    } else if (peek() == TokenKind::PIPE) {
+      events_[postfix].syntax_kind = SyntaxKind::UNION_TYPE_REF;
+      long new_cp = static_cast<long>(cp);
+      events_.insert(events_.begin() + static_cast<long>(cp),
+                     Event{EventKind::OPEN, SyntaxKind::UNION_TYPE_REF});
+      bump();
+      parse_type_ref();
+      events_.push_back(Event{EventKind::CLOSE, SyntaxKind::UNION_TYPE_REF});
+      cp = static_cast<std::size_t>(new_cp);
+    } else {
+      break;
     }
+    assert(cursor_ > before && "type postfix loop made no progress");
   }
 }
 
@@ -1011,12 +1008,15 @@ void vd::Parser::error_recover(const char *context) {
   amend_last_error(context);
   // auto m = open();
   while (peek() != TokenKind::SEMI && peek() != TokenKind::CBRACE &&
-         peek() != TokenKind::COMMA && peek() != TokenKind::_EOF) {
+         peek() != TokenKind::COMMA && peek() != TokenKind::CPAREN &&
+         peek() != TokenKind::_EOF) {
     bump();
   }
-  // DBUG: don't consume sync tokens
+  // NOTE: DBUG: !don't consume sync tokens!
+  std::cerr << "@(sync point)\t" << tokens_[cursor_] << '\n';
   // eat(TokenKind::SEMI);
   // eat(TokenKind::COMMA);
+  // eat(TokenKind::CBRACE);
   // m.set_kind( SyntaxKind::ERROR);
 }
 
