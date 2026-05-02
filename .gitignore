@@ -1,5 +1,6 @@
 # --- Build Artifacts ---
-build/
+build-linux/
+build-mac/
 bin/
 *.o
 *.a

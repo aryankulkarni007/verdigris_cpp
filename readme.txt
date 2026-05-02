@@ -11,3 +11,27 @@ I am writing a general purpose scripting language called verdigris. i want profe
 * I want to write the code. guide me and provide scaffolding
 * Participate in design discussion when required keeping an open mind and being able to backtrack and re-evaluate echo chamber issues and potential technical debt
 /caveman
+
+BUILD INSTRUCTIONS
+
+docker container
+
+- ( ) do this once
+docker build -t verdigris-dev .
+- then
+docker run -it --cap-add=SYS_PTRACE --security-opt seccomp=unconfined -v "$(pwd):/app" verdigris-dev
+
+___________________________
+
+LINUX
+
+cmake -S . -B build-linux -DCMAKE_BUILD_TYPE=Debug
+cmake --build build-linux/
+valgrind --leak-check=full ./build-linux/bin/verdigris
+./build-linux/bin/verdigris
+
+MAC
+
+cmake -S . -B build-mac -DCMAKE_BUILD_TYPE=Debug
+cmake --build build-mac/
+./build-mac/bin/verdigris

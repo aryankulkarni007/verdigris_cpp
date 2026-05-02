@@ -2,7 +2,6 @@
 #include "compiler/token.hpp"
 #include "compiler/tree_builder.hpp"
 #include <cstddef>
-#include <iomanip>
 
 int vd::Parser::left_bp(vd::TokenKind k) {
   using namespace vd; // to avoid local hassle
@@ -108,10 +107,13 @@ void vd::Parser::parse_primary(bool allow_struct_lit) {
     bump(); // (
     parse_expr(0);
     if (eat(TokenKind::COMMA)) {
+      size_t before;
       while (peek() != TokenKind::CPAREN && peek() != TokenKind::_EOF) {
+        before = cursor_;
         parse_expr(0);
         if (!eat(TokenKind::COMMA))
           break;
+        assert(cursor_ > before && "tuple expr loop made no progress");
       }
       expect(TokenKind::CPAREN);
       m.set_kind(SyntaxKind::TUPLE_E);
@@ -125,10 +127,13 @@ void vd::Parser::parse_primary(bool allow_struct_lit) {
   case TokenKind::OBRACK: {
     auto m = open();
     bump(); // [
+    size_t before;
     while (peek() != TokenKind::CBRACK && peek() != TokenKind::_EOF) {
+      before = cursor_;
       parse_expr(0);
       if (!eat(TokenKind::COMMA))
         break;
+      assert(cursor_ > before && "array literal loop made no progress");
     }
     expect(TokenKind::CBRACK);
     m.set_kind(SyntaxKind::ARRAY_LIT);
@@ -155,7 +160,9 @@ void vd::Parser::parse_expr(int min_bp, bool allow_struct_lit) {
   long cp = static_cast<long>(checkpoint());
   parse_primary(allow_struct_lit);
 
+  size_t before;
   while (true) {
+    before = cursor_;
     TokenKind op = peek();
     int lbp = left_bp(op);
     if (lbp <= min_bp)
@@ -168,6 +175,7 @@ void vd::Parser::parse_expr(int min_bp, bool allow_struct_lit) {
       bump();
       events_.push_back(Event{EventKind::CLOSE, SyntaxKind::UNARY_E});
       cp = new_cp; // point to the OPEN
+      assert(cursor_ > before && "LED postfix ! made no progress");
       continue;
     }
 
@@ -178,6 +186,7 @@ void vd::Parser::parse_expr(int min_bp, bool allow_struct_lit) {
       parse_args();
       events_.push_back(Event{EventKind::CLOSE, SyntaxKind::CALL_E});
       cp = new_cp;
+      assert(cursor_ > before && "LED call made no progress");
       continue;
     }
 
@@ -189,6 +198,7 @@ void vd::Parser::parse_expr(int min_bp, bool allow_struct_lit) {
       expect(TokenKind::IDENT);
       events_.push_back(Event{EventKind::CLOSE, SyntaxKind::FIELD_E});
       cp = new_cp;
+      assert(cursor_ > before && "LED field access made no progress");
       continue;
     }
 
@@ -201,6 +211,7 @@ void vd::Parser::parse_expr(int min_bp, bool allow_struct_lit) {
       expect(TokenKind::CBRACK);
       events_.push_back(Event{EventKind::CLOSE, SyntaxKind::INDEX_E});
       cp = new_cp;
+      assert(cursor_ > before && "LED index made no progress");
       continue;
     }
 
@@ -212,12 +223,14 @@ void vd::Parser::parse_expr(int min_bp, bool allow_struct_lit) {
     parse_expr(is_right_assoc(op) ? lbp - 1 : lbp);
     events_.push_back(Event{EventKind::CLOSE, SyntaxKind::BINARY_E});
     cp = new_cp;
+    assert(cursor_ > before && "LED binary made no progress");
   }
 }
 
 void vd::Parser::parse_type_ref() {
   std::size_t cp = checkpoint();
   auto m = open();
+  std::size_t postfix = checkpoint();
 
   if (eat(TokenKind::AMP)) {
     // &[type]
@@ -249,23 +262,33 @@ void vd::Parser::parse_type_ref() {
     m.set_kind(SyntaxKind::TYPE_REF);
   }
 
-  // postfix
-  while (true) {
-    if (peek() == TokenKind::QUESTION) {
-      events_.insert(events_.begin() + static_cast<long>(cp),
-                     Event{EventKind::OPEN, SyntaxKind::OPTIONAL_TYPE_REF});
-      bump();
-      events_.push_back(Event{EventKind::CLOSE, SyntaxKind::OPTIONAL_TYPE_REF});
-      cp = checkpoint();
-    } else if (peek() == TokenKind::PIPE) {
-      events_.insert(events_.begin() + static_cast<long>(cp),
-                     Event{EventKind::OPEN, SyntaxKind::UNION_TYPE_REF});
-      bump();
-      parse_type_ref();
-      events_.push_back(Event{EventKind::CLOSE, SyntaxKind::UNION_TYPE_REF});
-      cp = checkpoint();
-    } else {
-      break;
+  // postfix — only enter if there's actually a postfix token
+  if (peek() == TokenKind::QUESTION || peek() == TokenKind::PIPE) {
+    size_t before;
+    while (true) {
+      before = cursor_;
+      if (peek() == TokenKind::QUESTION) {
+        long new_cp = static_cast<long>(cp);
+        events_[postfix - 1].syntax_kind = SyntaxKind::OPTIONAL_TYPE_REF;
+        events_.insert(events_.begin() + static_cast<long>(cp),
+                       Event{EventKind::OPEN, SyntaxKind::OPTIONAL_TYPE_REF});
+        bump();
+        events_.push_back(
+            Event{EventKind::CLOSE, SyntaxKind::OPTIONAL_TYPE_REF});
+        cp = static_cast<std::size_t>(new_cp);
+      } else if (peek() == TokenKind::PIPE) {
+        events_[postfix - 1].syntax_kind = SyntaxKind::UNION_TYPE_REF;
+        long new_cp = static_cast<long>(cp);
+        events_.insert(events_.begin() + static_cast<long>(cp),
+                       Event{EventKind::OPEN, SyntaxKind::UNION_TYPE_REF});
+        bump();
+        parse_type_ref();
+        events_.push_back(Event{EventKind::CLOSE, SyntaxKind::UNION_TYPE_REF});
+        cp = static_cast<std::size_t>(new_cp);
+      } else {
+        break;
+      }
+      assert(cursor_ > before && "type postfix loop made no progress");
     }
   }
 }
@@ -276,12 +299,33 @@ void vd::Parser::parse_type_ref() {
 void vd::Parser::parse_typed_binding() {
   auto m = open();
   [[maybe_unused]] bool is_mut = eat(TokenKind::MUT);
-  parse_type_ref();         // Vec[int] or int or [int; 4]
-  expect(TokenKind::IDENT); // var name
+
+  if (peek() == TokenKind::OPAREN) {
+    // typed destructuring: (int x, int y) = ...
+    bump(); // (
+    size_t before;
+    while (peek() != TokenKind::CPAREN && peek() != TokenKind::_EOF) {
+      before = cursor_;
+      auto pm = open();
+      parse_type_ref();
+      expect(TokenKind::IDENT);
+      pm.set_kind(SyntaxKind::PARAM);
+      if (!eat(TokenKind::COMMA))
+        break;
+      assert(cursor_ > before &&
+             "typed binding destructure loop made no progress");
+    }
+    expect(TokenKind::CPAREN);
+  } else {
+    // single binding: int x = ...
+    parse_type_ref();
+    expect(TokenKind::IDENT);
+  }
+
   if (eat(TokenKind::ASSIGN)) {
-    parse_expr(); // array
+    parse_expr(0);
   } else if (peek() == TokenKind::OBRACE) {
-    parse_struct_lit(); // {} or { .x: 1, .y: 2 }
+    parse_struct_lit();
   } else {
     error_recover("expected '=' or '{' in binding");
     return;
@@ -318,18 +362,48 @@ void vd::Parser::parse_block() {
     return;
   }
 
+  size_t before;
   while (peek() != TokenKind::CBRACE && peek() != TokenKind::_EOF) {
-    bool terminated = parse_stmt();
-    if (!terminated) {
-      // parse_return_stmt();
+    before = cursor_;
+    // Statement keywords — parse normally
+    switch (peek()) {
+    case TokenKind::LET:
+    case TokenKind::MUT:
+    case TokenKind::RETURN:
+    case TokenKind::IF:
+    case TokenKind::MATCH:
+    case TokenKind::FOR:
+    case TokenKind::WHILE:
+    case TokenKind::LOOP:
+    case TokenKind::BREAK:
+    case TokenKind::CONTINUE:
+    case TokenKind::STRUCTURE:
+    case TokenKind::IMPLEMENT:
+    case TokenKind::TYPE:
+    case TokenKind::INTERFACE:
+    case TokenKind::OBRACE:
+      parse_stmt();
+      break;
+    default: {
+      //  if implicit return
+      auto sm = open();
+      parse_expr(0);
+      if (eat(TokenKind::SEMI)) {
+        sm.set_kind(SyntaxKind::EXPR_S);
+      } else {
+        // no ; — implicit return before '}'
+        sm.set_kind(SyntaxKind::IMPLICIT_RETURN_E);
+        expect(TokenKind::CBRACE);
+        m.set_kind(SyntaxKind::BLOCK_E);
+        return;
+      }
       break;
     }
+    }
+    assert(cursor_ > before && "block loop made no progress");
   }
 
-  if (!expect(TokenKind::CBRACE)) {
-    error_recover("expected '}'");
-    return;
-  }
+  expect(TokenKind::CBRACE);
   m.set_kind(SyntaxKind::BLOCK_E);
 }
 
@@ -353,29 +427,13 @@ bool vd::Parser::parse_stmt() {
     parse_return_stmt();
     return true; // always terminated with ';'
 
-    // Control flow
-  case TokenKind::IF: {
-    auto m = open();
+  // Control flow
+  case TokenKind::IF:
     parse_if_expr();
-    if (eat(TokenKind::SEMI)) {
-      m.set_kind(SyntaxKind::EXPR_S);
-      return true;
-    } else {
-      m.set_kind(SyntaxKind::IMPLICIT_RETURN_E);
-      return false;
-    }
-  }
-  case TokenKind::MATCH: {
-    auto m = open();
+    return true;
+  case TokenKind::MATCH:
     parse_match_expr();
-    if (eat(TokenKind::SEMI)) {
-      m.set_kind(SyntaxKind::EXPR_S);
-      return true;
-    } else {
-      m.set_kind(SyntaxKind::IMPLICIT_RETURN_E);
-      return false;
-    }
-  }
+    return true;
   case TokenKind::FOR:
     parse_for_stmt();
     return true;
@@ -396,7 +454,7 @@ bool vd::Parser::parse_stmt() {
     parse_block();
     return false;
 
-    // expression statement (any token that can start an expression)
+  // expression statement (any token that can start an expression)
   case TokenKind::IDENT: {
     if (is_fn_def()) {
       parse_fn();
@@ -409,13 +467,9 @@ bool vd::Parser::parse_stmt() {
     // expression statement
     auto m = open();
     parse_expr(0);
-    if (eat(TokenKind::SEMI)) {
-      m.set_kind(SyntaxKind::EXPR_S);
-      return true;
-    } else {
-      m.set_kind(SyntaxKind::IMPLICIT_RETURN_E);
-      return false;
-    }
+    expect(TokenKind::SEMI);
+    m.set_kind(SyntaxKind::EXPR_S);
+    return true;
   }
   case TokenKind::STRUCTURE:
     parse_structure();
@@ -436,16 +490,12 @@ bool vd::Parser::parse_stmt() {
       parse_typed_binding();
       return true;
     }
-    // fall through to expression
+    // expression statement
     auto m = open();
     parse_expr(0);
-    if (eat(TokenKind::SEMI)) {
-      m.set_kind(SyntaxKind::EXPR_S);
-      return true;
-    } else {
-      m.set_kind(SyntaxKind::IMPLICIT_RETURN_E);
-      return false;
-    }
+    expect(TokenKind::SEMI);
+    m.set_kind(SyntaxKind::EXPR_S);
+    return true;
   }
   case TokenKind::AMP: {
     // slice dispatch
@@ -453,16 +503,12 @@ bool vd::Parser::parse_stmt() {
       parse_typed_binding();
       return true;
     }
-    // unary expression dispatch
+    // expression statement
     auto m = open();
     parse_expr(0);
-    if (eat(TokenKind::SEMI)) {
-      m.set_kind(SyntaxKind::EXPR_S);
-      return true;
-    } else {
-      m.set_kind(SyntaxKind::IMPLICIT_RETURN_E);
-      return false;
-    }
+    expect(TokenKind::SEMI);
+    m.set_kind(SyntaxKind::EXPR_S);
+    return true;
   }
   case TokenKind::OPAREN: {
     // tuple destructuring binding
@@ -470,18 +516,14 @@ bool vd::Parser::parse_stmt() {
       parse_typed_binding();
       return true;
     }
-    // expression starting with (
+    // expression statement
     auto m = open();
     parse_expr(0);
-    if (eat(TokenKind::SEMI)) {
-      m.set_kind(SyntaxKind::EXPR_S);
-      return true;
-    } else {
-      m.set_kind(SyntaxKind::IMPLICIT_RETURN_E);
-      return false;
-    }
+    expect(TokenKind::SEMI);
+    m.set_kind(SyntaxKind::EXPR_S);
+    return true;
   }
-    // fall through to expression
+  // fall through to expression
   case TokenKind::INT:
   case TokenKind::FLOAT:
   case TokenKind::STRING:
@@ -491,17 +533,13 @@ bool vd::Parser::parse_stmt() {
   case TokenKind::_NULL:
   case TokenKind::STAR:
   case TokenKind::MINUS:
-    // case TokenKind::PIPE: { // lambda |x| -> ...
+  // case TokenKind::PIPE: { // lambda |x| -> ...
   case TokenKind::BANG: {
     auto m = open();
     parse_expr(0);
-    if (eat(TokenKind::SEMI)) {
-      m.set_kind(SyntaxKind::EXPR_S);
-      return true;
-    } else {
-      m.set_kind(SyntaxKind::IMPLICIT_RETURN_E);
-      return false; // implicit return
-    }
+    expect(TokenKind::SEMI);
+    m.set_kind(SyntaxKind::EXPR_S);
+    return true;
   }
 
   default:
@@ -513,12 +551,14 @@ bool vd::Parser::parse_stmt() {
 // NOTE: owns the parens
 void vd::Parser::parse_params() {
   auto m = open();
-  std::cerr << "parse_params: peek=" << token_name(peek()) << "\n";
   if (!expect(TokenKind::OPAREN)) {
     error_recover("expected '(' after function name");
     return;
   }
+
+  size_t before;
   while (peek() != TokenKind::CPAREN && peek() != TokenKind::_EOF) {
+    before = cursor_;
     if (peek() == TokenKind::SELF) {
       auto pm = open();
       bump();
@@ -526,15 +566,22 @@ void vd::Parser::parse_params() {
     } else {
       auto pm = open();
       parse_type_ref();
-      expect(TokenKind::IDENT);
-      pm.set_kind(SyntaxKind::PARAM);
+      if (expect(TokenKind::IDENT)) {
+        pm.set_kind(SyntaxKind::PARAM);
+      } else {
+        error_recover("expected parameter name");
+        pm.set_kind(SyntaxKind::ERROR);
+        // continue to next param or exit
+      }
     }
+
     if (!eat(TokenKind::COMMA))
       break;
+    assert(cursor_ > before && "params loop made no progress");
   }
+
   if (!expect(TokenKind::CPAREN)) {
     error_recover("expected ')' after function args");
-    return;
   }
   m.set_kind(SyntaxKind::PARAM_LIST);
 }
@@ -542,10 +589,13 @@ void vd::Parser::parse_params() {
 void vd::Parser::parse_args() {
   auto m = open();
   expect(TokenKind::OPAREN); // (
+  size_t before;
   while (peek() != TokenKind::CPAREN && peek() != TokenKind::_EOF) {
+    before = cursor_;
     parse_expr(); // type_name name
     if (!eat(TokenKind::COMMA))
       break;
+    assert(cursor_ > before && "args loop made no progress");
   }
   expect(TokenKind::CPAREN); // )
   m.set_kind(SyntaxKind::ARG_LIST);
@@ -558,10 +608,13 @@ void vd::Parser::parse_args() {
 void vd::Parser::parse_gen_args() {
   auto m = open();
   expect(TokenKind::OBRACK);
+  size_t before;
   while (peek() != TokenKind::CBRACK && peek() != TokenKind::_EOF) {
+    before = cursor_;
     parse_type_ref();
     if (!eat(TokenKind::COMMA))
       break;
+    assert(cursor_ > before && "gen args loop made no progress");
   }
   expect(TokenKind::CBRACK);
   m.set_kind(SyntaxKind::GEN_ARG_LIST);
@@ -575,9 +628,11 @@ void vd::Parser::parse_gen_params() {
   auto m = open();
   expect(TokenKind::OBRACK);
 
+  size_t before;
   while (peek() != TokenKind::CBRACK && peek() != TokenKind::_EOF) {
+    before = cursor_;
     expect(TokenKind::IDENT); // param name: T, K, V, Rhs
-    // optional constraint: : Hashable + Eq
+    // optional constraint: : HashableEq
     if (eat(TokenKind::COL)) {
       parse_type_ref(); // Hashable
       while (eat(TokenKind::PLUS))
@@ -588,6 +643,7 @@ void vd::Parser::parse_gen_params() {
       parse_type_ref(); // Self
     if (!eat(TokenKind::COMMA))
       break;
+    assert(cursor_ > before && "gen params loop made no progress");
   }
   if (!expect(TokenKind::CBRACK)) {
     error_recover("expected ']' after generic args");
@@ -598,6 +654,7 @@ void vd::Parser::parse_gen_params() {
 
 void vd::Parser::parse_fn() {
   auto m = open();
+  eat(TokenKind::EXPORT); // optional export
   expect(TokenKind::IDENT);
   if (peek() == TokenKind::OBRACK)
     parse_gen_params();
@@ -640,11 +697,14 @@ void vd::Parser::parse_structure() {
     return;
   }
 
+  size_t before;
   while (peek() != TokenKind::CBRACE && peek() != TokenKind::_EOF) {
+    before = cursor_;
     if (is_fn_def())
       parse_fn(); // method sig → ends with ; → FN_SIG
     else
       parse_field(); // field → name: type,
+    assert(cursor_ > before && "structure loop made no progress");
   }
 
   if (!expect(TokenKind::CBRACE)) {
@@ -662,8 +722,12 @@ void vd::Parser::parse_implement() {
     error_recover("expected '{' in implement block");
     return;
   }
-  while (peek() != TokenKind::CBRACE && peek() != TokenKind::_EOF)
+  size_t before;
+  while (peek() != TokenKind::CBRACE && peek() != TokenKind::_EOF) {
+    before = cursor_;
     parse_fn(); // always full def here, never sig
+    assert(cursor_ > before && "implement loop made no progress");
+  }
   if (!expect(TokenKind::CBRACE)) {
     error_recover("expected '}' after implement block");
     return;
@@ -675,10 +739,13 @@ void vd::Parser::parse_variant() {
   auto m = open();
   expect(TokenKind::IDENT);
   if (eat(TokenKind::OPAREN)) {
+    size_t before;
     while (peek() != TokenKind::CPAREN && peek() != TokenKind::_EOF) {
+      before = cursor_;
       parse_type_ref();
       if (!eat(TokenKind::COMMA))
         break;
+      assert(cursor_ > before && "variant loop made no progress");
     }
     expect(TokenKind::CPAREN);
   }
@@ -710,7 +777,9 @@ void vd::Parser::parse_interface() {
     error_recover("expected '{' after interface start");
     return;
   }
+  size_t before;
   while (peek() != TokenKind::CBRACE && peek() != TokenKind::_EOF) {
+    before = cursor_;
     if (is_fn_def())
       parse_fn(); // method sig, must end with ;
     else {
@@ -721,6 +790,7 @@ void vd::Parser::parse_interface() {
       }
       expect(TokenKind::SEMI);
     }
+    assert(cursor_ > before && "interface loop made no progress");
   }
   if (!expect(TokenKind::CBRACE)) {
     error_recover("expected '}' after interface body");
@@ -769,10 +839,13 @@ void vd::Parser::parse_pattern() {
   //  (x, y)    circle(r)   rectangle(w, h))
   case TokenKind::OPAREN:
     bump();
+    size_t before;
     while (peek() != TokenKind::CPAREN && peek() != TokenKind::_EOF) {
+      before = cursor_;
       parse_pattern();
       if (!eat(TokenKind::COMMA))
         break;
+      assert(cursor_ > before && "tuple pattern loop made no progress");
     }
     expect(TokenKind::CPAREN);
     m.set_kind(SyntaxKind::TUPLE_P);
@@ -784,10 +857,13 @@ void vd::Parser::parse_pattern() {
     // If followed by '(', it's a variant: Circle(r)
     if (peek() == TokenKind::OPAREN) {
       bump(); // (
+      size_t before2;
       while (peek() != TokenKind::CPAREN && peek() != TokenKind::_EOF) {
+        before2 = cursor_;
         parse_pattern();
         if (!eat(TokenKind::COMMA))
           break;
+        assert(cursor_ > before2 && "enum pattern loop made no progress");
       }
       expect(TokenKind::CPAREN);
       m.set_kind(SyntaxKind::ENUM_P);
@@ -810,15 +886,18 @@ void vd::Parser::parse_match_arm() {
   if (peek() == TokenKind::IF) {
     auto gm = open();
     bump(); // if
-    parse_expr();
+    parse_expr(0, false);
     gm.set_kind(SyntaxKind::GUARD_P);
   }
 
-  expect(TokenKind::FATARROW);
+  if (!expect(TokenKind::FATARROW)) {
+    error_recover("expected '=>' after match pattern");
+    return;
+  }
   if (peek() == TokenKind::OBRACE)
     parse_block();
   else {
-    parse_expr();
+    parse_expr(0, false);
     eat(TokenKind::COMMA);
   }
   m.set_kind(SyntaxKind::MATCH_ARM);
@@ -828,13 +907,17 @@ void vd::Parser::parse_match_arm() {
 void vd::Parser::parse_match_expr() {
   auto m = open();
   expect(TokenKind::MATCH);
-  parse_expr(); // match subject
+  parse_expr(0, false); // match subject
   if (!expect(TokenKind::OBRACE)) {
     error_recover("expected '{' before match body");
     return;
   }
-  while (peek() != TokenKind::CBRACE && peek() != TokenKind::_EOF)
+  size_t before;
+  while (peek() != TokenKind::CBRACE && peek() != TokenKind::_EOF) {
+    before = cursor_;
     parse_match_arm();
+    assert(cursor_ > before && "match arm loop made no progress");
+  }
 
   if (!expect(TokenKind::CBRACE)) {
     error_recover("expected '}' after match body");
@@ -897,13 +980,16 @@ void vd::Parser::parse_struct_lit() {
     return;
   }
 
+  size_t before;
   while (peek() != TokenKind::CBRACE && peek() != TokenKind::_EOF) {
+    before = cursor_;
     expect(TokenKind::DOT);   // .field required
     expect(TokenKind::IDENT); // field name
     expect(TokenKind::COL);
     parse_expr(0); // value
     if (!eat(TokenKind::COMMA))
       break;
+    assert(cursor_ > before && "struct literal loop made no progress");
   }
 
   if (!expect(TokenKind::CBRACE)) {
@@ -928,8 +1014,9 @@ void vd::Parser::error_recover(const char *context) {
          peek() != TokenKind::COMMA && peek() != TokenKind::_EOF) {
     bump();
   }
-  eat(TokenKind::SEMI);
-  eat(TokenKind::COMMA);
+  // DBUG: don't consume sync tokens
+  // eat(TokenKind::SEMI);
+  // eat(TokenKind::COMMA);
   // m.set_kind( SyntaxKind::ERROR);
 }
 

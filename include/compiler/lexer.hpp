@@ -1,55 +1,44 @@
 #pragma once
 
-#include "compiler/token.hpp"
+#include "token.hpp"
 #include <array>
 #include <cstddef>
 #include <string_view>
 
+#include <string_view>
+#include <unordered_map>
+
+using namespace std::string_view_literals;
+
 static vd::TokenKind keyword_kind(std::string_view s) {
-  if (s == "as")
-    return vd::TokenKind::AS;
-  if (s == "let")
-    return vd::TokenKind::LET;
-  if (s == "mut")
-    return vd::TokenKind::MUT;
-  if (s == "structure")
-    return vd::TokenKind::STRUCTURE;
-  if (s == "type")
-    return vd::TokenKind::TYPE;
-  if (s == "for")
-    return vd::TokenKind::FOR;
-  if (s == "in")
-    return vd::TokenKind::IN;
-  if (s == "match")
-    return vd::TokenKind::MATCH;
-  if (s == "loop")
-    return vd::TokenKind::LOOP;
-  if (s == "while")
-    return vd::TokenKind::WHILE;
-  if (s == "break")
-    return vd::TokenKind::BREAK;
-  if (s == "continue")
-    return vd::TokenKind::CONTINUE;
-  if (s == "if")
-    return vd::TokenKind::IF;
-  if (s == "else")
-    return vd::TokenKind::ELSE;
-  if (s == "return")
-    return vd::TokenKind::RETURN;
-  if (s == "null")
-    return vd::TokenKind::_NULL;
-  if (s == "self")
-    return vd::TokenKind::SELF;
-  if (s == "export")
-    return vd::TokenKind::EXPORT;
-  if (s == "import")
-    return vd::TokenKind::IMPORT;
-  if (s == "interface")
-    return vd::TokenKind::INTERFACE;
-  if (s == "implement")
-    return vd::TokenKind::IMPLEMENT;
-  if (s == "effect")
-    return vd::TokenKind::EFFECT;
+  static const std::unordered_map<std::string_view, vd::TokenKind> keywords = {
+      {"as", vd::TokenKind::AS},
+      {"let", vd::TokenKind::LET},
+      {"mut", vd::TokenKind::MUT},
+      {"structure", vd::TokenKind::STRUCTURE},
+      {"type", vd::TokenKind::TYPE},
+      {"for", vd::TokenKind::FOR},
+      {"in", vd::TokenKind::IN},
+      {"match", vd::TokenKind::MATCH},
+      {"loop", vd::TokenKind::LOOP},
+      {"while", vd::TokenKind::WHILE},
+      {"break", vd::TokenKind::BREAK},
+      {"continue", vd::TokenKind::CONTINUE},
+      {"if", vd::TokenKind::IF},
+      {"else", vd::TokenKind::ELSE},
+      {"return", vd::TokenKind::RETURN},
+      {"null", vd::TokenKind::_NULL},
+      {"self", vd::TokenKind::SELF},
+      {"export", vd::TokenKind::EXPORT},
+      {"import", vd::TokenKind::IMPORT},
+      {"interface", vd::TokenKind::INTERFACE},
+      {"implement", vd::TokenKind::IMPLEMENT},
+      {"effect", vd::TokenKind::EFFECT}};
+
+  if (auto it = keywords.find(s); it != keywords.end()) {
+    return it->second;
+  }
+
   return vd::TokenKind::IDENT;
 }
 
@@ -187,15 +176,15 @@ private:
     while (!is_at_end()) {
       char c = peek();
       if (is_wspace(c)) {
-        consume_while([](char c) { return is_wspace(c); });
+        consume_while([](char ch) { return is_wspace(ch); });
         continue;
       }
       if (c == '-' && peek(1) == '-' && peek(2) == '-') {
-        consume_while([](char c) { return c != '\n'; });
+        consume_while([](char ch) { return ch != '\n'; });
         continue;
       }
       if (c == '-' && peek(1) == '-') {
-        consume_while([](char c) { return c != '\n'; });
+        consume_while([](char ch) { return ch != '\n'; });
         continue;
       }
       if (c == '-' && peek(1) == '*') {
@@ -231,7 +220,7 @@ private:
   Token lex_ident(std::string_view trivia) {
     auto m = anchor(trivia);
     consume_while(
-        [](char c) { return is_alpha(c) || is_digit(c) || c == '_'; });
+        [](char ch) { return is_alpha(ch) || is_digit(ch) || ch == '_'; });
 
     std::string_view text = m.text();
     if (text == "_")
@@ -242,10 +231,10 @@ private:
 
   Token lex_num(std::string_view trivia) {
     auto m = anchor(trivia);
-    consume_while([](char c) { return is_digit(c); });
+    consume_while([](char ch) { return is_digit(ch); });
     if (peek() == '.' && is_digit(peek(1))) {
       advance();
-      consume_while([](char c) { return is_digit(c); });
+      consume_while([](char ch) { return is_digit(ch); });
       return m.complete(TokenKind::FLOAT);
     }
     return m.complete(TokenKind::INT);

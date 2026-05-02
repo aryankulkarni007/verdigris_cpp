@@ -7,6 +7,7 @@
 #include <memory_resource>
 #include <sys/mman.h>
 #include <sys/stat.h>
+#include <system_error>
 
 int main(int argc, char *argv[]) {
   if (argc < 2) {
@@ -16,8 +17,8 @@ int main(int argc, char *argv[]) {
 
   int fd = open(argv[1], O_RDONLY);
   if (fd == -1) {
-    std::cerr << "Error opening " << argv[1] << ": " << std::strerror(errno)
-              << "\n";
+    std::cerr << "Error opening " << argv[1] << ": "
+              << std::generic_category().message(errno) << "\n";
     return 1;
   }
   struct stat st;

@@ -27,6 +27,9 @@ private:
 
   std::pmr::vector<Event> events_;
 
+  std::size_t token_budget_;
+  static constexpr size_t TOKEN_BUDGET = 10'000'000;
+
 public:
   // WARN: temp public
   std::pmr::vector<ParserError> errors_;
@@ -185,14 +188,32 @@ private:
 
   // was too eager with previous def
   bool is_fn_def() const {
-    if (peek(0) != TokenKind::IDENT)
-      return false;
-    if (peek(1) != TokenKind::OPAREN)
-      return false;
+    size_t i = 0;
+    if (peek(i) == TokenKind::EXPORT)
+      i++;
 
-    // Skip to matching )
+    if (peek(i) != TokenKind::IDENT)
+      return false;
+    i++;
+
+    // optional generics
+    if (peek(i) == TokenKind::OBRACK) {
+      int depth = 1;
+      i++;
+      while (depth > 0 && peek(i) != TokenKind::_EOF) {
+        if (peek(i) == TokenKind::OBRACK)
+          depth++;
+        else if (peek(i) == TokenKind::CBRACK)
+          depth--;
+        i++;
+      }
+    }
+
+    if (peek(i) != TokenKind::OPAREN)
+      return false;
+    i++;
+
     int depth = 1;
-    size_t i = 2;
     while (depth > 0 && peek(i) != TokenKind::_EOF) {
       if (peek(i) == TokenKind::OPAREN)
         depth++;
@@ -200,10 +221,7 @@ private:
         depth--;
       i++;
     }
-    if (depth != 0)
-      return false;
 
-    // After ), must have -> for a function definition
     return peek(i) == TokenKind::ARROW;
   }
 
@@ -277,6 +295,8 @@ private:
           i++;
         }
       }
+      if (peek(i) == TokenKind::QUESTION)
+        i++;
       if (peek(i) != TokenKind::IDENT)
         return false;
       i++;
@@ -297,6 +317,14 @@ private:
     default:
       return false;
     }
+  }
+
+  bool check_budget() {
+    if (--token_budget_ == 0) {
+      errors_.push_back({"parser exceeded token budget", current().loc});
+      return false;
+    }
+    return true;
   }
 };
 

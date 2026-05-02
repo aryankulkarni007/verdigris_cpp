@@ -114,7 +114,7 @@ implement Point {
 
 -- usage
 Point x{};          -- uses origin constructor
-Point y{10, 10};    -- uses constructor with params
+Point y{ .x : 10, .y : 10};
 
 let dist = x.distance(y);
 print("{}", dist);
@@ -125,13 +125,13 @@ type Option[T] = Some(T) | None
 type Result[T, E] = Ok(T), Err(E)
 
 type Shape =
-    | Circle(float radius)
-    | Rectangle(float width, float height)
+    | Circle(float)
+    | Rectangle(float, float )
     | Dot
 
 --> PATTERN MATCHING
 -- could be an interface i.e. area for circle, rectangle or dot
-area(shape: Shape) -> float {
+area(Shape s) -> float {
     match shape {
         Circle(r) => 3.14159 * r * r,
         Rectangle(w, h) => w * h,
@@ -171,8 +171,10 @@ interface Eq {
     eq(self, other: Self) -> bool;
 }
 
-Point::format(self) -> string {
-    print("({}, {})", self.x, self.y)
+implement Point {
+    print(self) -> string {
+        print("({}, {})", self.x, self.y)
+    }
 }
 
 interface HashableEq {
@@ -180,13 +182,9 @@ interface HashableEq {
     Eq;
 }
 
-get_or_insert[K: Hashable + Eq, V](
-    map: Map[K, V],
-    key: k,
-    default: V
-    ) -> V {
-    -- TODO
-}
+get_or_insert[K: HashableEq , V]
+    (Map[K, V] map, K key, V default) -> V {}
+
 
 --> Operator Overloading
 interface Add[Rhs = Self] {
@@ -194,11 +192,13 @@ interface Add[Rhs = Self] {
 }
 
 -- for custom types
-Vector3::add(self, other: Vector3) -> Vector3 {
-    Vector3{
-        .x: self.x + other.x,
-        .y: self.y + other.y,
-        .z: self.z + other.z,
+implement Vector3 {
+    add(self, other: Vector3) -> Vector3 {
+        Vector3{
+            .x: self.x + other.x,
+                .y: self.y + other.y,
+                .z: self.z + other.z,
+        }
     }
 }
 
